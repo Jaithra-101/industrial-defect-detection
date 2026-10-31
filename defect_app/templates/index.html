@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h3 mb-2">Visual Quality Inspection</h1>
+    <p class="text-secondary">Upload one or more images of casting parts. The AI model (MobileNetV2) classifies each part as
+      <span class="badge bg-success">OK</span> or <span class="badge bg-danger">DEFECTIVE</span> and shows a Grad-CAM heatmap of where it found the defect.</p>
+
+    <form action="{{ url_for('inspect') }}" method="post" enctype="multipart/form-data" class="card card-body shadow-sm" id="upload-form">
+      <label for="images" class="drop-zone" id="drop-zone">
+        <div class="fs-1">📤</div>
+        <div class="fw-semibold">Click to choose images or drag them here</div>
+        <div class="small text-secondary">JPG, PNG or BMP · multiple files allowed</div>
+        <div class="small mt-2" id="file-count"></div>
+      </label>
+      <input type="file" name="images" id="images" accept=".jpg,.jpeg,.png,.bmp" multiple required hidden>
+      <button type="submit" class="btn btn-primary btn-lg mt-3" id="submit-btn">Inspect</button>
+    </form>
+
+    <p class="small text-secondary mt-3">Decision threshold: P(defect) ≥ {{ '%.2f'|format(threshold) }} → DEFECTIVE
+      (tuned in training to keep defect recall high).</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const input = document.getElementById('images');
+  const zone = document.getElementById('drop-zone');
+  const count = document.getElementById('file-count');
+  const showCount = () => { count.textContent = input.files.length ? `${input.files.length} file(s) selected` : ''; };
+  input.addEventListener('change', showCount);
+  ['dragover', 'dragenter'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(e => zone.addEventListener(e, () => zone.classList.remove('hover')));
+  zone.addEventListener('drop', ev => { ev.preventDefault(); input.files = ev.dataTransfer.files; showCount(); });
+  document.getElementById('upload-form').addEventListener('submit', () => {
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Inspecting…';
+  });
+</script>
+{% endblock %}

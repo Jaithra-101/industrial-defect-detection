@@ -1,0 +1,20 @@
+{
+  "img_size": [
+    224,
+    224
+  ],
+  "class_names": [
+    "OK",
+    "DEFECTIVE"
+  ],
+  "threshold": 0.85,
+  "base_model_layer": "mobilenetv2_1.00_224",
+  "test_metrics": {
+    "Accuracy": 0.9944055944055944,
+    "Precision (defective)": 0.9955849889624724,
+    "Recall (defective)": 0.9955849889624724,
+    "F1 (defective)": 0.9955849889624724,
+    "ROC-AUC": 0.9997977857540064,
+    "Params (M)": 2.259265
+  }
+}

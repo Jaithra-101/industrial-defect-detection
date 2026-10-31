@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · Defect Inspector{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h1 class="h3 mb-0">Inspection dashboard</h1>
+  <a href="{{ url_for('export_csv') }}" class="btn btn-outline-secondary btn-sm">⬇ Export CSV</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="card stat-card"><div class="card-body">
+    <div class="small text-secondary">Parts inspected</div><div class="fs-3 fw-bold">{{ stats.total }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card stat-card"><div class="card-body">
+    <div class="small text-secondary">Defect rate</div><div class="fs-3 fw-bold text-danger">{{ '%.1f'|format(stats.defect_rate) }}%</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card stat-card"><div class="card-body">
+    <div class="small text-secondary">Avg confidence</div><div class="fs-3 fw-bold">{{ '%.1f'|format(stats.avg_confidence * 100) }}%</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card stat-card"><div class="card-body">
+    <div class="small text-secondary">Avg inference time</div><div class="fs-3 fw-bold">{{ '%.0f'|format(stats.avg_ms) }} ms</div></div></div></div>
+</div>
+
+{% if stats.total %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-4"><div class="card shadow-sm h-100"><div class="card-header">OK vs defective</div>
+    <div class="card-body"><canvas id="pie"></canvas></div></div></div>
+  <div class="col-lg-8"><div class="card shadow-sm h-100"><div class="card-header">Inspections per day</div>
+    <div class="card-body"><canvas id="daily"></canvas></div></div></div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header">Recent inspections (last 50)</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr><th>#</th><th>Time</th><th>Source</th><th>File</th><th>Result</th><th>Confidence</th><th>ms</th><th>Image</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td class="text-nowrap small">{{ r.timestamp }}</td>
+          <td><span class="badge bg-light text-dark border">{{ r.source }}</span></td>
+          <td class="small text-truncate" style="max-width: 180px">{{ r.filename }}</td>
+          <td><span class="badge bg-{{ 'danger' if r.label == 'DEFECTIVE' else 'success' }}">{{ r.label }}</span></td>
+          <td>{{ '%.1f'|format(r.confidence * 100) }}%</td>
+          <td>{{ '%.0f'|format(r.inference_ms) }}</td>
+          <td>{% if r.heatmap_file %}<a href="{{ url_for('media', filename=r.heatmap_file) }}" target="_blank">
+            <img src="{{ url_for('media', filename=r.image_file) }}" class="thumb rounded" alt=""></a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">No inspections yet. <a href="{{ url_for('index') }}">Upload some images</a> or try <a href="{{ url_for('live') }}">live inspection</a>.</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if stats.total %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const stats = {{ stats|tojson }};
+  new Chart(document.getElementById('pie'), {
+    type: 'doughnut',
+    data: { labels: ['OK', 'DEFECTIVE'],
+            datasets: [{ data: [stats.ok, stats.defective], backgroundColor: ['#198754', '#dc3545'] }] },
+  });
+  new Chart(document.getElementById('daily'), {
+    type: 'bar',
+    data: { labels: stats.daily.map(d => d.day),
+            datasets: [{ label: 'OK', data: stats.daily.map(d => d.ok), backgroundColor: '#198754' },
+                       { label: 'DEFECTIVE', data: stats.daily.map(d => d.defective), backgroundColor: '#dc3545' }] },
+    options: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+</script>
+{% endif %}
+{% endblock %}

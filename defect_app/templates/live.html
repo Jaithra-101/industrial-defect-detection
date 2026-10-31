@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Live Inspection · Defect Inspector{% endblock %}
+{% block content %}
+<h1 class="h3 mb-2">Live inspection</h1>
+<p class="text-secondary">Simulates a camera above a conveyor belt: frames from your webcam are sent to the model a few times per second.
+  Hold a part (or a photo of one on your phone/screen) in front of the camera.</p>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header">Camera</div>
+      <div class="card-body text-center">
+        <video id="video" autoplay playsinline muted class="w-100 rounded bg-dark"></video>
+        <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+          <button id="start" class="btn btn-success">Start inspection</button>
+          <button id="stop" class="btn btn-outline-danger" disabled>Stop</button>
+          <div class="form-check form-switch align-self-center ms-2">
+            <input class="form-check-input" type="checkbox" id="log">
+            <label class="form-check-label" for="log">Save results to history</label>
+          </div>
+        </div>
+        <div id="cam-error" class="alert alert-warning mt-3 d-none"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Model output</span>
+        <span id="label" class="badge bg-secondary fs-5">—</span>
+      </div>
+      <div class="card-body text-center">
+        <img id="heatmap" class="w-100 rounded bg-light" alt="Grad-CAM" style="min-height: 200px">
+        <div class="row mt-3 text-center">
+          <div class="col"><div class="small text-secondary">Confidence</div><div id="conf" class="fs-5 fw-semibold">—</div></div>
+          <div class="col"><div class="small text-secondary">P(defect)</div><div id="prob" class="fs-5 fw-semibold">—</div></div>
+          <div class="col"><div class="small text-secondary">Inference</div><div id="ms" class="fs-5 fw-semibold">—</div></div>
+          <div class="col"><div class="small text-secondary">Frames</div><div id="frames" class="fs-5 fw-semibold">0</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<canvas id="canvas" width="320" height="320" hidden></canvas>
+{% endblock %}
+{% block scripts %}
+<script>
+  const video = document.getElementById('video'), canvas = document.getElementById('canvas');
+  const startBtn = document.getElementById('start'), stopBtn = document.getElementById('stop');
+  const els = id => document.getElementById(id);
+  let stream = null, running = false, frames = 0;
+
+  async function start() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    } catch (err) {
+      const box = els('cam-error');
+      box.textContent = 'Could not open the camera: ' + err.message + '. Allow camera access in your browser and try again.';
+      box.classList.remove('d-none');
+      return;
+    }
+    video.srcObject = stream;
+    running = true; startBtn.disabled = true; stopBtn.disabled = false;
+    loop();
+  }
+
+  function stop() {
+    running = false;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    startBtn.disabled = false; stopBtn.disabled = true;
+  }
+
+  async function loop() {
+    if (!running) return;
+    if (video.videoWidth) {
+      // Centre-crop a square from the video frame, like the square training images
+      const s = Math.min(video.videoWidth, video.videoHeight);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, (video.videoWidth - s) / 2, (video.videoHeight - s) / 2, s, s, 0, 0, canvas.width, canvas.height);
+      try {
+        const res = await fetch('{{ url_for("api_predict") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.85), log: els('log').checked }),
+        });
+        const r = await res.json();
+        if (res.ok) {
+          const label = els('label');
+          label.textContent = r.label;
+          label.className = 'badge fs-5 bg-' + (r.is_defective ? 'danger' : 'success');
+          els('heatmap').src = r.heatmap;
+          els('conf').textContent = (r.confidence * 100).toFixed(1) + '%';
+          els('prob').textContent = r.defect_prob.toFixed(3);
+          els('ms').textContent = r.inference_ms.toFixed(0) + ' ms';
+          els('frames').textContent = ++frames;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    setTimeout(loop, 300);
+  }
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+</script>
+{% endblock %}

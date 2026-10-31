@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Results · Defect Inspector{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h1 class="h3 mb-0">Inspection results</h1>
+  <a href="{{ url_for('index') }}" class="btn btn-outline-primary">Inspect more</a>
+</div>
+
+{% if summary.total > 1 %}
+<div class="alert alert-secondary">
+  {{ summary.total }} parts inspected ·
+  <strong class="text-danger">{{ summary.defective }} defective</strong> ·
+  <strong class="text-success">{{ summary.total - summary.defective }} OK</strong>
+</div>
+{% endif %}
+
+{% for e in errors %}
+<div class="alert alert-warning py-2">{{ e }}</div>
+{% endfor %}
+
+<div class="row g-4">
+  {% for r in results %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card shadow-sm h-100 border-{{ 'danger' if r.is_defective else 'success' }}">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="text-truncate small" title="{{ r.filename }}">{{ r.filename }}</span>
+        <span class="badge fs-6 bg-{{ 'danger' if r.is_defective else 'success' }}">{{ r.label }}</span>
+      </div>
+      <div class="row g-0">
+        <div class="col-6 p-1 text-center">
+          <img src="{{ url_for('media', filename=r.image_file) }}" class="img-fluid rounded" alt="original">
+          <div class="small text-secondary">Original</div>
+        </div>
+        <div class="col-6 p-1 text-center">
+          <img src="{{ url_for('media', filename=r.heatmap_file) }}" class="img-fluid rounded" alt="Grad-CAM">
+          <div class="small text-secondary">Grad-CAM</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between small mb-1">
+          <span>Confidence</span><strong>{{ '%.1f'|format(r.confidence * 100) }}%</strong>
+        </div>
+        <div class="progress mb-2" style="height: 8px">
+          <div class="progress-bar bg-{{ 'danger' if r.is_defective else 'success' }}" style="width: {{ r.confidence * 100 }}%"></div>
+        </div>
+        <div class="small text-secondary">P(defect) = {{ '%.4f'|format(r.defect_prob) }} · {{ '%.0f'|format(r.inference_ms) }} ms</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
